@@ -22,7 +22,7 @@
 # this script must be passed exactly one argument, check for it, exit with message if not supplied one
 
 if [ -z "$1" ] || (( $# > 1 )); then
-    echo usage: $0 programName
+    echo usage: focus FILTER
     exit
 fi
 
@@ -50,7 +50,7 @@ fi
    
 # okay now that we're past all the red tape...
 # save the parameter we were passed as something more human readable
-programName=$1
+filter=$1
 
 # get the list of running windows
 runningWindows="$(wmctrl -lp)"
@@ -61,29 +61,33 @@ runningWindows="$(wmctrl -lp)"
 
 # pass them into grep to get only the entries we care about, save
 # the value as eligible for focusing
-matchedWindows=$(echo "$runningWindows" | grep $programName)
+matchedWindows=$(echo "$runningWindows" | grep $filter)
+echo "Matched windows:"
 echo "$matchedWindows"
+echo "-------------------------"
 
 # if we've got more than one line, check if cycling is enabled
 # if it is, then get the currently active window ID, and change
 # focus to the one that's immediately after it. If that's the
 # last one, change focus to the first in the ordering.
 numMatchedWindows=$(echo "$matchedWindows" | wc -l)
-echo $numMatchedWindows
+#echo $numMatchedWindows
 if [[ $numMatchedWindows > 1 ]]; then
     if [[ -n $cycling ]]; then
         # captures ID from xprop, saves it, replaces the empty string.
-        # attempts at just trimming the relevant endpoints of the string were not fruitful, unfortunately. 
-        currentlyFocusedWindowID="$(xprop -root | sed -n 's/^_NET_ACTIVE_WINDOW(WINDOW): window id # \(.*\), .*/\1/p')"
+        # xprop removes all preceding 0's AFTER the hex marker '0x', so we need to strip that
+        # out as well. Don't know if any windows can have more than 7 bytes... need to examine this issue.
+        rawWindowID="$(xprop -root | sed -n 's/^_NET_ACTIVE_WINDOW(WINDOW): window id # 0x\(.*\),.*/\1/p')"
+        #echo "diag"
+        #echo $rawWindowID
         
         # gets index of currentlyFocusedWindowID in matchedWindows. if nothing
         # is returned then we're not focused on a relevant window and we can cycle through
         # starting at 1. similarly if the match line number is equivalent to $numMatchedWindows
         # we are at the end of the cycle and start at one.
-        echo $matchedWindows
-        echo $currentlyFocusedWindowID
-        indexOfCurrentlyFocusedWindow="$($(echo $matchedWindows | grep -n $currentlyFocusedWindowID))"
-        echo $indexOfCurrentlyFocusedWindow
+        # the value we care about is the first field delimited by :
+        indexOfCurrentlyFocusedWindow=$(echo "$matchedWindows" | grep -n $rawWindowID | cut -d : - -f 1)
+        echo "$indexOfCurrentlyFocusedWindow"
     fi
 fi
 
