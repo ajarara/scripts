@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# REQUIRES:
+#    wmctrl
+#    OPTIONAL:
+#        xprop
+#        sed
+#        wc
+#
+# end REQUIRES
+
+# this file is designed to be called by mapping commands to keystrokes.
+# the general idea is that it uses wmctrl (which works with a whole
+# number of window managers) to check if a window is open with the process
+# you're looking to open. If it exists, then bring it to focus with
+#
+# $ wmctrl -a $1
+#
+# else start the process as needed.
+# inspired by quicksilver and the OS X method of handling windowing.
+
+# this script must be passed exactly one argument, check for it, exit with message if not supplied one
+
+if [ -z "$1" ] || (( $# > 1 )); then
+    echo usage: $0 programName
+    exit
+fi
+
+# in the case of multiple windows, we need a way to cycle through them. this script
+# can do that, but it uses xprop and sed to get the currently active window, so that
+# it can cycle through to the next one. unset this if you don't want cycling/don't have
+# xprop or sed installed. enabled by default, with the possibility of expanding this
+# into an option later on down the line
+cycling=1
+
+# check to see if all our deps are installed
+checkForDep() {
+           command -v $1 >/dev/null 2>&1 || { echo "$1 is required, but it's not installed. Aborting. $2" >&2; exit 1; }
+}
+
+checkForDep wmctrl
+# if cycling is non-zero or non null, then check to see if xprop, sed and wc are installed as well
+if [[ -n $cycling ]]; then
+    for depName in xprop sed wc
+    do
+        checkForDep $depName "This dependency is optional, unset cycling in the script file if you don't want to install it."
+    done
+fi
+
+   
+# okay now that we're past all the red tape...
+# save the parameter we were passed as something more human readable
+programName=$1
+
+# get the list of running windows
+runningWindows="$(wmctrl -lp)"
+
+# notice we're not using ps or pgrep or any of that.
+# this program is only designed to bring focus to windows,
+# wmctrl handles exactly that quite nicely
+
+# pass them into grep to get only the entries we care about, save
+# the value as eligible for focusing
+matchedWindows=$(echo "$runningWindows" | grep $programName)
+echo "$matchedWindows"
+
+# if we've got more than one line, check if cycling is enabled
+# if it is, then get the currently active window ID, and change
+# focus to the one that's immediately after it. If that's the
+# last one, change focus to the first in the ordering.
+numMatchedWindows=$(echo "$matchedWindows" | wc -l)
+echo $numMatchedWindows
+if [[ $numMatchedWindows > 1 ]]; then
+    if [[ -n $cycling ]]; then
+        # captures ID from xprop, saves it, replaces the empty string.
+        # attempts at just trimming the relevant endpoints of the string were not fruitful, unfortunately. 
+        currentlyFocusedWindowID="$(xprop -root | sed -n 's/^_NET_ACTIVE_WINDOW(WINDOW): window id # \(.*\), .*/\1/p')"
+        
+        # gets index of currentlyFocusedWindowID in matchedWindows. if nothing
+        # is returned then we're not focused on a relevant window and we can cycle through
+        # starting at 1. similarly if the match line number is equivalent to $numMatchedWindows
+        # we are at the end of the cycle and start at one.
+        echo $matchedWindows
+        echo $currentlyFocusedWindowID
+        indexOfCurrentlyFocusedWindow="$($(echo $matchedWindows | grep -n $currentlyFocusedWindowID))"
+        echo $indexOfCurrentlyFocusedWindow
+    fi
+fi
+
+        
+        
+        
