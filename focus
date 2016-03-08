@@ -33,7 +33,9 @@ fi
 # into an option later on down the line
 cycling=1
 
-# in the case of no matching windows with our filter, execute the filter instead
+# in the case of no matching windows with our filter, enable the option to execute a command
+# instead. a possible better way to do this is to just return an exit code and have
+# another script handle the outcome.
 newInstance=1
 
 # check to see if all our deps are installed
@@ -93,6 +95,9 @@ getWindowIDInLine () {
     if [[ $windowID  == 0x* ]]; then
         echo "$windowID"
     else
+        # this should never happen, given that we formatted the
+        # string ourselves, but I'd rather have it fail with some
+        # exit code anyway.
         exit 64
     fi
 }
