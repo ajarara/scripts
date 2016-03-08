@@ -19,10 +19,10 @@
 # else start the process as needed.
 # inspired by quicksilver and the OS X method of handling windowing.
 
-# this script must be passed exactly one argument, check for it, exit with message if not supplied one
+# this script must be passed exactly one argument, optionally two, check for it, exit with message if not supplied one
 
-if [ -z "$1" ] || (( $# > 1 )); then
-    echo usage: focus FILTER
+if [[ -z "$1" ]] || (( $# > 2 )); then
+    echo usage: focus FILTER [COMMAND]
     exit
 fi
 
@@ -32,6 +32,9 @@ fi
 # xprop or sed installed. enabled by default, with the possibility of expanding this
 # into an option later on down the line
 cycling=1
+
+# in the case of no matching windows with our filter, execute the filter instead
+newInstance=1
 
 # check to see if all our deps are installed
 checkForDep() {
@@ -52,6 +55,11 @@ fi
 # save the parameter we were passed as something more human readable
 filter=$1
 
+if [[ -n $2 ]]; then
+   backupCommand=$2
+fi
+
+
 # get the list of running windows
 runningWindows="$(wmctrl -lp)"
 
@@ -62,35 +70,88 @@ runningWindows="$(wmctrl -lp)"
 # pass them into grep to get only the entries we care about, save
 # the value as eligible for focusing
 matchedWindows=$(echo "$runningWindows" | grep $filter)
-echo "Matched windows:"
-echo "$matchedWindows"
-echo "-------------------------"
+
+# if there are no matched windows and newInstance is enabled, execute backupCommand
+# and exit. else if there are no matched windows and newInstance is disabled,
+# just exit. 
+if [[ -z $matchedWindows ]]; then
+    if [[ -n $newInstance && -n $backupCommand ]]; then
+        # the ampersand is necessary here to ensure the script terminates without
+        # waiting for the backupCommand to terminate
+        $backupCommand &
+    fi
+    exit
+fi
+
+# at this point we need to parse wmctrl -a output.
+# given a line in wmctrl -a, this returns the first word
+# delimited by a space. in this case we're
+# looking for the window ID.
+
+getWindowIDInLine () {
+    windowID=$(echo "$1" | cut -d ' ' -f 1)
+    if [[ $windowID  == 0x* ]]; then
+        echo "$windowID"
+    else
+        exit 64
+    fi
+}
+
+# getting the number of windows listed
+numMatchedWindows=$(echo "$matchedWindows" | wc -l)
+
+# if we've got exactly one window match, focus it. exit.
+if [[ $numMatchedWindows -eq 1 ]]; then
+    windowID=$(getWindowIDInLine "$matchedWindows")
+    wmctrl -i -a "$windowID"
+    exit
+fi
+
+# we now need a way to get individual lines from $matchedWindows
+# we could pass in $matchedWindows as another parameter here
+# to generalize this function but it's simple enough and is
+# not used in another context within this script, so we can
+# just write it directly in the body.
+getLineNo () {
+    num=$1
+    echo "$matchedWindows" | sed "${num}q;d"
+}
+    
 
 # if we've got more than one line, check if cycling is enabled
 # if it is, then get the currently active window ID, and change
 # focus to the one that's immediately after it. If that's the
 # last one, change focus to the first in the ordering.
-numMatchedWindows=$(echo "$matchedWindows" | wc -l)
-#echo $numMatchedWindows
 if [[ $numMatchedWindows > 1 ]]; then
     if [[ -n $cycling ]]; then
         # captures ID from xprop, saves it, replaces the empty string.
-        # xprop removes all preceding 0's AFTER the hex marker '0x', so we need to strip that
-        # out as well. Don't know if any windows can have more than 7 bytes... need to examine this issue.
+        # xprop removes all preceding 0's AFTER the hex marker '0x', so we need to add
+        # them back. This isn't strictly necessary, but it'll ensure a unique ID
         rawWindowID="$(xprop -root | sed -n 's/^_NET_ACTIVE_WINDOW(WINDOW): window id # 0x\(.*\),.*/\1/p')"
-        #echo "diag"
-        #echo $rawWindowID
+        
+        windowID=$rawWindowID
+        # prepend 0's until we have the correct length
+        while [ ${#windowID} -lt 8 ]; do
+              windowID=0$windowID
+        done
+        # add the hexadecimal tag
+        windowID=0x$windowID
         
         # gets index of currentlyFocusedWindowID in matchedWindows. if nothing
         # is returned then we're not focused on a relevant window and we can cycle through
         # starting at 1. similarly if the match line number is equivalent to $numMatchedWindows
         # we are at the end of the cycle and start at one.
         # the value we care about is the first field delimited by :
-        indexOfCurrentlyFocusedWindow=$(echo "$matchedWindows" | grep -n $rawWindowID | cut -d : - -f 1)
-        echo "$indexOfCurrentlyFocusedWindow"
+        indexOfCurrentlyFocusedWindow=$(echo "$matchedWindows" | grep -n $windowID | cut -d : - -f 1)
+
+        # test if index is empty, this implies we're not focused on a relevant window. 
+        # OR test if we're at the last window in the list.
+        # in either case, we're going to loop back to the first in the listing.
+        if [[ -z $indexOfCurrentlyFocusedWindow || $numMatchedWindows -eq $indexOfCurrentlyFocusedWindow ]]; then
+            wmctrl -i -a $(getWindowIDInLine $(getLineNo 1))
+        else
+            # since neither are satisfied, we can assume we're between the extremes and cycle to the next in the listing
+            wmctrl -i -a $(getWindowIDInLine $(getLineNo $(( $indexOfCurrentlyFocusedWindow + 1 ))))
+        fi
     fi
 fi
-
-        
-        
-        
