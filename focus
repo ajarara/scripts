@@ -19,7 +19,7 @@
 # else start the process as needed.
 # inspired by quicksilver and the OS X method of handling windowing.
 
-# this script must be passed exactly one argument, optionally two, check for it, exit with message if not supplied one
+# this script must be passed one argument, optionally two, check for it, exit with message if not supplied one
 
 if [[ -z "$1" ]] || (( $# > 2 )); then
     echo usage: focus FILTER [COMMAND]
@@ -78,9 +78,11 @@ matchedWindows=$(echo "$runningWindows" | grep $filter)
 # just exit. 
 if [[ -z $matchedWindows ]]; then
     if [[ -n $newInstance && -n $backupCommand ]]; then
+	# let us know that we're starting the process with a timeout in milliseconds
+	notify-send "$backupCommand started!" -t 1500
         # the ampersand is necessary here to ensure the script terminates without
         # waiting for the backupCommand to terminate
-        $backupCommand &
+        eval $backupCommand &
     fi
     exit
 fi
