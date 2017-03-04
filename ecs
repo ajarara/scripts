@@ -1,0 +1,3 @@
+#!/bin/bash
+
+focus "emacs" "emacsclient -c --alternate-editor=\"\" -e \"(x-focus-frame (selected-frame))\""

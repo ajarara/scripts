@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+# If you are using this for your OWN use, get the slave keyboard
+# pointer of your attached keyboard, and modify the 3 under the hack
+# section below.
+
+# toggles laptop keyboard. Notice BIOS keys are STILL sent, this means
+# you can still turn off your trackpad or turn off your screen. I'm
+# fine with this, but this won't work if you want to do that.
+
+# regex to uniquely identify keyboard from xinput list
+dkb_xinput_reg='AT Translated Set 2 keyboard'
+
+dkb_laptopkb=$(xinput list | grep $dkb_xinput_reg)
+
+# we need the id no matter what
+dkb_kb_id=$(echo $dkb_laptopkb | awk '{ print $7 }' | cut -d '=' -f 2)
+
+# god, I hate bash sometimes. Commence hack.
+
+if echo $dkb_laptopkb | grep floating; then
+  notify-send "Laptop keyboard disabled, re-enabling."
+  xinput reattach $dkb_kb_id 3 # Change the 3 for whatever is yours
+else
+  notify-send "Laptop keyboard enabled, disabling."
+  xinput float $dkb_kb_id
+fi
