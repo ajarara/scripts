@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -21,9 +21,9 @@ dkb_kb_id=$(echo $dkb_laptopkb | awk '{ print $7 }' | cut -d '=' -f 2)
 # god, I hate bash sometimes. Commence hack.
 
 if echo $dkb_laptopkb | grep floating; then
-  notify-send "Laptop keyboard disabled, re-enabling."
+  notify-send "Laptop keyboard disabled, re-enabling." -t 1500
   xinput reattach $dkb_kb_id 3 # Change the 3 for whatever is yours
 else
-  notify-send "Laptop keyboard enabled, disabling."
+  notify-send "Laptop keyboard enabled, disabling." -t 1500
   xinput float $dkb_kb_id
 fi
