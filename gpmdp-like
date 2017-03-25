@@ -1,0 +1,18 @@
+#!/bin/sh
+set -euo pipefail
+IFS=$'\n\t'
+
+# GPMDP has a JSON file that it updates every so often. This is OS
+# specific, but just look here for it:
+# https://github.com/MarshallOfSound/Google-Play-Music-Desktop-Player-UNOFFICIAL-/blob/master/docs/PlaybackAPI.md
+GPMDP_API='/home/ajarara/.config/Google Play Music Desktop Player/json_store/playback.json'
+
+# a file that we want to log to. Not JSON readable, for now at least. should exist.
+OUT='/home/ajarara/doc/logs/music.txt'
+# jq has a simple-ish syntax, with accessors and pipes working as you'd expect.
+# we want the song metadata, and I could see myself also wanting the
+# point within the song where I decided I liked it enough to incur
+# disk writes
+jq '. | {song: .song, time: .time}' $GPMDP_API >> $OUT
+
+
