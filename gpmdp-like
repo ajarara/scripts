@@ -2,17 +2,94 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+
+# REQUIRES:
+#  jq
+#  sqlite3
+#  Google Play Music Desktop Player
+
+# check if GPMDP is running:
+
+if [[ ! -h "/home/ajarara/.config/Google Play Music Desktop Player/SingletonLock" ]]; then
+   notify-send -t 2500 "GPDMP is not running!"
+   exit 1
+fi
+
+
 # GPMDP has a JSON file that it updates every so often. This is OS
 # specific, but just look here for it:
 # https://github.com/MarshallOfSound/Google-Play-Music-Desktop-Player-UNOFFICIAL-/blob/master/docs/PlaybackAPI.md
 GPMDP_API='/home/ajarara/.config/Google Play Music Desktop Player/json_store/playback.json'
 
-# a file that we want to log to. Not JSON readable, for now at least. should exist.
-OUT='/home/ajarara/doc/logs/music.txt'
+# our database. If it doesn't exist, initialize it.
+OUT='/home/ajarara/doc/logs/music.db'
+
+if [[ ! -f $OUT ]]; then  # file does not exist, initialize it with a table.
+    # the reason we make our timestamp unique is to figure out if this
+    # is the same listen. We find this at add-time by taking the
+    # relative_like_time, rounding down to the nearest second, and
+    # subtracting it from the timestamp. This is the time the song
+    # started. There is some cause for concern for the possibility
+    # that a rounding error occurs, but this isn't really a serious
+    # application.
+    sqlite3 $OUT "create table music (song TEXT, artist TEXT, album TEXT, albumArtURL TEXT, timestamp INTEGER, relative_like_time INTEGER, length INTEGER, UNIQUE(timestamp));"
+fi
+
+# if the table gets too big in size, I'll export out the useful info
+# and dump the albumart metadata.
+   
+
 # jq has a simple-ish syntax, with accessors and pipes working as you'd expect.
 # we want the song metadata, and I could see myself also wanting the
 # point within the song where I decided I liked it enough to incur
-# disk writes
-jq '. | {song: .song, time: .time}' $GPMDP_API >> $OUT
+# disk writes.
 
+# initially, I sent the below output directly to $OUT but I want to display it so that when I invoke it, I also get reminded of the song name. So save output to variable. This also avoids a race condition.
+IN=$(jq '.' $GPMDP_API)
+NOW=$(date +%s)
+
+if [[ 0 -eq $(echo $IN | jq '.time.total') ]]; then
+    notify-send -t 2500 "No song currently selected, you hipster."
+    exit 1
+fi
+
+
+# we want to save the image so that we can display it in our notify-send.
+# we need a place to save them to. bash variables don't do pictures.
+IMG_DIR='/tmp/gpmdp-AlbumArt/'
+mkdir -p $IMG_DIR
+
+# get the album art URL. jq -r gets the value without surrounding double quotes
+URL=$(echo $IN | jq -r '.song.albumArt')
+
+# save the path. who needs awk when you have glorious CUT!
+# hehe, I'm just kidding. Don't hurt me, awkies.
+LOC=$(echo $IMG_DIR$(echo $URL | cut - -d / -f 4)) # yes, that lack of space by IMG_DIR is intended.
+
+
+# wget outputs to our location. no clobber removed, perhaps there might be some change in album art that I'd like to capture.
+wget $URL -O $LOC
+
+# store our liked song in the sqlite3 db. Since we have a mix of json and non json, and the json module of sqlite3 is a compile time option usually disabled by default, we'll use subshells to input our records.
+# sqlite3 $OUT "create table music (song TEXT, artist TEXT, album TEXT, albumArtURL TEXT, albumArt BLOB, timestamp INTEGER, relative_like_time INTEGER, length INTEGER, UNIQUE(timestamp));"
+
+echo "Got here, pulling info out of $IN"
+
+# this is gross. Is there a better way to do this?
+SONGNAME=$(echo $IN | jq -r '.song.title')
+ARTIST=$(echo $IN | jq -r '.song.artist')
+ALBUM=$(echo $IN | jq -r '.song.album')
+ALBUMART=$(echo $IN | jq -r '.song.albumArt')
+RELATIVE_LIKE_TIME=$(echo $IN | jq -r '.time.current') # in milliseconds
+TIMESTAMP=$(( $NOW - $RELATIVE_LIKE_TIME / 1000 )) # bash rounds down, int division
+LENGTH=$(echo $IN | jq -r '.time.total')
+
+echo "Attempting to save to $OUT"
+
+
+sqlite3 $OUT "insert into music values(\"$SONGNAME\", \"$ARTIST\", \"$ALBUM\", \"$ALBUMART\", \"$TIMESTAMP\", \"$RELATIVE_LIKE_TIME\", \"$LENGTH\")"
+
+
+# notify success! -t is timeout, -i is our icon that we worked so hard to get.
+notify-send -t 2500 -i $LOC "Added $SONGNAME to $OUT"
 
