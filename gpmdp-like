@@ -73,9 +73,11 @@ wget $URL -O $LOC
 # store our liked song in the sqlite3 db. Since we have a mix of json and non json, and the json module of sqlite3 is a compile time option usually disabled by default, we'll use subshells to input our records.
 # sqlite3 $OUT "create table music (song TEXT, artist TEXT, album TEXT, albumArtURL TEXT, albumArt BLOB, timestamp INTEGER, relative_like_time INTEGER, length INTEGER, UNIQUE(timestamp));"
 
-echo "Got here, pulling info out of $IN"
+echo "Pulling info out of $IN"
 
 # this is gross. Is there a better way to do this?
+# sqlite3 has a JSON extension but it is requires a compile time flag to be set.
+# this would be a good candidate for using with NGNAME=$(echo $IN | jq -r '.song.title')
 SONGNAME=$(echo $IN | jq -r '.song.title')
 ARTIST=$(echo $IN | jq -r '.song.artist')
 ALBUM=$(echo $IN | jq -r '.song.album')
