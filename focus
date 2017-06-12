@@ -71,7 +71,7 @@ runningWindows="$(wmctrl -lp)"
 
 # pass them into grep to get only the entries we care about, save
 # the value as eligible for focusing
-matchedWindows=$(echo "$runningWindows" | grep $filter)
+matchedWindows=$(echo "$runningWindows" | grep -E $filter)
 
 # if there are no matched windows and newInstance is enabled, execute backupCommand
 # and exit. else if there are no matched windows and newInstance is disabled,
