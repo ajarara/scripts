@@ -13,7 +13,7 @@ IFS=$'\n\t'
 # regex to uniquely identify keyboard from xinput list
 dkb_xinput_reg='AT Translated Set 2 keyboard'
 
-dkb_laptopkb=$(xinput list | grep $dkb_xinput_reg)
+dkb_laptopkb="$(xinput list | grep $dkb_xinput_reg)"
 
 # we need the id no matter what
 dkb_kb_id=$(echo $dkb_laptopkb | awk '{ print $7 }' | cut -d '=' -f 2)
