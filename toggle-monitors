@@ -6,6 +6,5 @@ if xrandr | grep "$extern connected"; then
     xrandr --output "$extern" --auto
     xrandr --output "$intern" --off
 else
-    xrandr --output "$extern" --off
     xrandr --output "$intern" --auto
 fi
